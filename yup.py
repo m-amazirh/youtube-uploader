@@ -206,7 +206,15 @@ if __name__ == '__main__':
         parser.error("files not provided")
         raise SystemExit(1)
 
-    sizes = [os.path.getsize(f) for f in options.file_list]
+    file_list = []
+    for f in options.file_list :
+        absolute_path = os.path.abspath(f)
+        if os.path.exists(absolute_path) :
+            file_list.append(absolute_path)
+        else:
+            print "* Ignoring %s \n" % (f)
+
+    sizes = [os.path.getsize(f) for f in file_list]
     total_size = reduce(lambda x, y: x + y, sizes)
     print "%d files for upload, total size: %.2f MB" % (len(options.file_list),
                                                         total_size / 1024.0 / 1024.0)
