@@ -21,7 +21,20 @@ from optparse import OptionParser
 from datetime import datetime
 from getpass import getpass
 
-def _upload_file(url, items_dict, infile):
+def _parse_upload_rate(rate):
+   unit=rate[-1]
+   value=rate[0:-1]
+   upload_rate = -1
+   if unit == "k" or unit == "K":
+       upload_rate = int(value) * 1000
+   elif unit == "m" or unit == "M":
+       upload_rate = int(value) * 1000 * 1000
+   else:
+       upload_rate = int(rate)
+   
+   return upload_rate
+
+def _upload_file(url, items_dict, infile, upload_rate = -1):
     """upload a file to given url using POST method
     
     Arguments:
@@ -55,6 +68,10 @@ def _upload_file(url, items_dict, infile):
     # progress
     c.setopt(pycurl.NOPROGRESS, 0)
     c.setopt(pycurl.PROGRESSFUNCTION, progress)
+    
+    #upload rate limit
+    if upload_rate > -1 :
+        c.setopt(c.MAX_SEND_SPEED_LARGE, upload_rate)
 
     # need to check header if redirection to nexturl was ok
     header = StringIO.StringIO()
@@ -94,11 +111,12 @@ class YoutubeUploader(object):
     """
     CATEGORIES_SCHEME = "http://gdata.youtube.com/schemas/2007/categories.cat"
 
-    def __init__(self, user=None):
+    def __init__(self, user=None, upload_rate = -1):
         """
         """
         self._files = []
         self._user = user
+        self._upload_rate = upload_rate
         self._yt = None
         self._setup_youtube_service()
 
@@ -184,7 +202,7 @@ class YoutubeUploader(object):
         #print url, token
 
         # upload file
-        if _upload_file(url, {"token" : token } , filename):
+        if _upload_file(url, {"token" : token } , filename, self._upload_rate):
             print "   done"
         else:
             print "   failed"
@@ -196,6 +214,8 @@ if __name__ == '__main__':
                       default=[], help="file to upload")
     parser.add_option("-u", "--user", dest="user", default=None,
                       help="username (required)")
+    parser.add_option("-r","--limit-rate",dest="upload_rate",default=None,
+                      help="upload speed")
     (options, args) = parser.parse_args()
 
     if not options.user:
@@ -219,7 +239,13 @@ if __name__ == '__main__':
     print "%d files for upload, total size: %.2f MB" % (len(options.file_list),
                                                         total_size / 1024.0 / 1024.0)
 
-    yu = YoutubeUploader(options.user)
+    upload_rate = -1
+    try:
+        upload_rate = _parse_upload_rate(options.upload_rate)
+    except Exception as e:
+        print "* Ignoring limit rate for the upload speed"
+
+    yu = YoutubeUploader(options.user,upload_rate)
     [yu.add_video_file(f) for f in options.file_list]
     yu.upload()
     
